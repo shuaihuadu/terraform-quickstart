@@ -151,3 +151,38 @@ resource "azurerm_virtual_machine_data_disk_attachment" "data_disk_attach" {
   lun                = 0
   caching            = var.data_disk_type == "PremiumV2_LRS" ? "None" : "ReadWrite"
 }
+
+# 部署后配置：设置用户密码
+resource "null_resource" "set_user_password" {
+  count = var.ssh_public_key_file != null && fileexists(".env") ? 1 : 0
+
+  triggers = {
+    vm_id = azurerm_linux_virtual_machine.vm.id
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      # 从 .env 文件读取密码
+      source .env
+      
+      # 等待 VM 完全就绪
+      echo "Waiting for VM to be ready..."
+      sleep 30
+      
+      # 使用 Azure CLI 通过 run-command 设置密码
+      echo "Setting password for user ${var.admin_username}..."
+      az vm run-command invoke \
+        --resource-group ${azurerm_resource_group.vm_rg.name} \
+        --name ${azurerm_linux_virtual_machine.vm.name} \
+        --command-id RunShellScript \
+        --scripts "echo '${var.admin_username}:'\"$PASSWORD\" | sudo chpasswd" \
+        --output none
+      
+      echo "✓ Password set successfully for user ${var.admin_username}"
+    EOT
+  }
+
+  depends_on = [
+    azurerm_linux_virtual_machine.vm
+  ]
+}
