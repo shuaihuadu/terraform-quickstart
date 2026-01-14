@@ -137,10 +137,10 @@ terraform-quickstart/
 ├── terraform.tfvars               # 配置文件（修改这个！）
 ├── Makefile                       # 自动化命令
 ├── scripts/
-│   ├── check-availability.sh      # 资源可用性检查
-│   ├── deploy.sh                  # 部署脚本
-│   ├── clean.sh                   # 清理脚本
-│   └── README.md                  # 脚本文档
+│   ├── check-vmss-disk-availability.sh  # VMSS和磁盘可用性检查
+│   ├── deploy.sh                        # 部署脚本
+│   ├── clean.sh                         # 清理脚本
+│   └── README.md                        # 脚本文档
 └── README.md                      # 本文件
 ```
 

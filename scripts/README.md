@@ -1,131 +1,371 @@
-# Azure Resource Availability Check
+# VMSS & Disk Availability Check Script
 
-这个脚本在部署前验证 Azure 资源的可用性，避免部署失败。
+这个脚本用于在部署前验证 Azure VMSS 和 Premium SSD v2 磁盘在指定区域和可用区的可用性，避免部署失败。
 
-## 功能
+## 功能特性
 
 - ✅ 检查 VM SKU 在指定区域的可用性
-- ✅ 检查磁盘类型在指定区域的可用性  
-- ✅ 验证可用区的兼容性
-- ✅ 检测资源限制和约束
-- ✅ 提供友好的错误提示和建议
+- ✅ 检查 Premium SSD v2 磁盘在指定区域的可用性  
+- ✅ 验证 VM 和磁盘在同一可用区的兼容性
+- ✅ 检测订阅级别的资源限制和约束
+- ✅ 支持单个或多个可用区检查
+- ✅ 提供清晰的错误提示和可行建议
 
 ## 使用方法
 
-### 方法 1：直接运行脚本
+### 脚本语法
 
 ```bash
-./scripts/check-availability.sh
+./scripts/check-vmss-disk-availability.sh <vm-sku> <region> <zones>
 ```
 
-### 方法 2：通过 Makefile
+**参数说明：**
+- `vm-sku`: VM SKU 名称（例如：Standard_D4s_v6）
+- `region`: Azure 区域（例如：westus3）
+- `zones`: 可用区，单个或逗号分隔（例如：1 或 1,2,3）
+
+### 使用示例
 
 ```bash
-# 仅检查
+# 检查单个可用区
+./scripts/check-vmss-disk-availability.sh Standard_D4s_v6 westus3 3
+
+# 检查多个可用区
+./scripts/check-vmss-disk-availability.sh Standard_D4s_v6 westus3 "1,2,3"
+
+# 测试不同的 VM 规格
+./scripts/check-vmss-disk-availability.sh Standard_D8s_v6 westus3 1
+
+# 通过 Makefile（会读取 terraform.tfvars 中的配置）
+make check
+```
+
+### 通过 Makefile
+
+Makefile 中的 `check` 目标会调用此脚本：
+
+```bash
+# 仅检查可用性
 make check
 
 # 检查并部署（自动先检查再部署）
 make deploy
 ```
 
-## 检查内容
+## 检查流程
 
-脚本会从 `terraform.tfvars` 读取配置并检查：
+脚本按以下顺序执行检查：
 
-1. **VM SKU 可用性**
-   - 检查 VM 规格是否在目标区域可用
-   - 验证是否有容量限制
+### 1. VM SKU 可用性检查
+- 验证 VM 规格是否在目标区域可用
+- 检查订阅级别的限制
+- 显示 VM 支持的可用区信息
 
-2. **磁盘 SKU 可用性**
-   - 检查磁盘类型（如 PremiumV2_LRS）是否可用
-   - 验证磁盘限制
+### 2. Premium SSD v2 磁盘检查
+- 验证 Premium V2 磁盘是否在区域可用
+- 检查磁盘在指定可用区的支持情况
+- 显示磁盘支持的可用区列表
 
-3. **可用区兼容性**
-   - 验证 VM 和磁盘在指定可用区的兼容性
-   - 提供可用区建议
+### 3. 可用区兼容性验证
+- 确认 VM 和磁盘都能在同一可用区部署
+- **重要**：Premium SSD v2 要求 VM 和磁盘必须在同一可用区
 
 ## 输出示例
 
-### ✅ 检查通过
+### ✅ 检查通过（单可用区）
+
 ```
 ======================================
 Azure Resource Availability Check
 ======================================
 
 Configuration:
-  Location: westus3
-  VM Size: Standard_D4s_v6
+  VM SKU:    Standard_D4s_v6
+  Region:    westus3
+  Zones:     3
   Disk Type: PremiumV2_LRS
-  Target Zones: 3
 
 ✓ Logged in to Azure
-  Subscription: xxx
+  Subscription: ME-MngEnvMCAP603028-wangch-1
 
-1. Checking VM SKU availability...
-✓ VM SKU 'Standard_D4s_v6' is available
+1. Checking VM SKU availability in region 'westus3'...
+✓ VM SKU 'Standard_D4s_v6' is available in region 'westus3'
   Available zones: [2, 3, 1]
 
-2. Checking Disk SKU availability...
-✓ Disk type 'PremiumV2_LRS' is available
+2. Checking Disk type 'PremiumV2_LRS' in region 'westus3'...
+✓ Disk type 'PremiumV2_LRS' is available in region 'westus3'
   Available zones: [1, 2, 3]
 
 3. Checking Zone compatibility...
+   Note: Premium SSD v2 requires BOTH VM and Disk in the SAME zone
+
   Checking zone 3...
-    ✓ Zone 3: Both VM and Disk supported
+    ✓ Zone 3: Both VM and Disk can be deployed
 
 ======================================
 ✅ All checks passed!
+
+Summary:
+  ✓ VM SKU 'Standard_D4s_v6' is available in region 'westus3'
+  ✓ Disk 'PremiumV2_LRS' is available in region 'westus3'
+  ✓ Both can be deployed in specified zones: 3
+
+Important: Deploy VM to the same zone as Premium SSD v2
+You can proceed with deployment.
 ======================================
-
-You can proceed with deployment:
-  make deploy
 ```
 
-### ❌ 检查失败
+### ❌ VM SKU 受限
+
 ```
-1. Checking VM SKU availability...
+1. Checking VM SKU availability in region 'eastus'...
 ❌ VM SKU has restrictions in 'eastus'
+[
+  {
+    "reasonCode": "NotAvailableForSubscription",
+    "restrictionInfo": {
+      "locations": [
+        "eastus"
+      ]
+    },
+    "type": "Location",
+    "values": [
+      "eastus"
+    ]
+  }
+]
+```
 
-💡 Zone restrictions detected
-   Try: zones = null  (in terraform.tfvars)
+### ❌ 区域不支持 Premium SSD v2
+
+```
+2. Checking Disk type 'PremiumV2_LRS' in region 'southindia'...
+❌ Disk type 'PremiumV2_LRS' not available in region 'southindia'
+
+💡 This region does not support Premium SSD v2
+```
+
+### ❌ VM SKU 不存在
+
+```
+1. Checking VM SKU availability in region 'westus3'...
+❌ VM SKU 'Standard_D99s_v99' not found in region 'westus3'
+
+💡 Available similar SKUs in westus3:
+Standard_D2s_v5
+Standard_D4s_v5
+Standard_D8s_v5
+Standard_D16s_v5
+Standard_D32s_v5
+Standard_D4s_v6
+Standard_D8s_v6
+Standard_D16s_v6
 ```
 
 ## 常见问题解决
 
-### VM SKU 不可用
+### 问题 1: VM SKU 在区域不可用
 
-**问题**：`❌ VM SKU 'Standard_D4s_v6' not found in 'eastus'`
+**错误信息**：
+```
+❌ VM SKU 'Standard_D4s_v6' not found in region 'eastus'
+```
+
+**原因**：该 VM 规格在指定区域不存在
+
+**解决方案**：
+```bash
+# 方案 1: 更换到支持的区域
+# 修改 terraform.tfvars:
+location = "westus3"
+
+# 方案 2: 使用该区域支持的 VM 规格
+# 脚本会列出可用的类似 SKU，从中选择一个
+vm_size = "Standard_D4s_v5"
+```
+
+### 问题 2: VM SKU 有订阅级别限制
+
+**错误信息**：
+```
+❌ VM SKU has restrictions in 'eastus'
+[
+  {
+    "reasonCode": "NotAvailableForSubscription",
+    ...
+  }
+]
+```
+
+**原因**：当前订阅没有权限在该区域使用此 VM 规格
 
 **解决方案**：
 ```bash
 # 方案 1: 更换区域
-location = "westus3"
+location = "westus3"  # 或其他无限制的区域
 
-# 方案 2: 更换 VM 规格
+# 方案 2: 联系 Azure 支持申请配额
+# https://portal.azure.com -> 支持 + 故障排除 -> 新建支持请求
+
+# 方案 3: 使用不同的 VM 规格
 vm_size = "Standard_D4s_v5"
 ```
 
-### 磁盘类型不可用
+### 问题 3: 区域不支持 Premium SSD v2
 
-**问题**：`❌ Disk type 'PremiumV2_LRS' not available`
-
-**解决方案**：
-```bash
-# 使用 Premium SSD v1
-# 在 main.tf 中修改: storage_account_type = "Premium_LRS"
+**错误信息**：
+```
+❌ Disk type 'PremiumV2_LRS' not available in region 'southindia'
+💡 This region does not support Premium SSD v2
 ```
 
-### 可用区不兼容
-
-**问题**：`❌ Zone 3: Incompatible`
+**原因**：Premium SSD v2 目前只在部分区域可用
 
 **解决方案**：
 ```bash
-# 方案 1: 更换可用区
+# 方案 1: 更换到支持 Premium SSD v2 的区域
+# 支持的区域包括：westus3, eastus2, northeurope, westeurope 等
+location = "westus3"
+
+# 方案 2: 使用 Premium SSD v1（修改 main.tf）
+# 将 storage_account_type 从 "PremiumV2_LRS" 改为 "Premium_LRS"
+# 注意：Premium v1 不支持自定义 IOPS/throughput
+```
+
+### 问题 4: 可用区不兼容
+
+**错误信息**：
+```
+❌ Zone 5: Disk not supported
+```
+
+**原因**：磁盘在指定的可用区不可用
+
+**解决方案**：
+```bash
+# 方案 1: 使用磁盘支持的可用区
+# 脚本会显示磁盘支持的可用区列表，选择其中一个
 zones = ["1"]
 
-# 方案 2: 不使用可用区
+# 方案 2: 不使用可用区（区域级部署）
 zones = null
+
+# 方案 3: 检查多个可用区找到兼容的
+./scripts/check-vmss-disk-availability.sh Standard_D4s_v6 westus3 "1,2,3"
+```
+
+### 问题 5: VM 无可用区信息
+
+**错误信息**：
+```
+⚠️  VM has no zone info (can deploy to any zone)
+```
+
+**说明**：这不是错误！VM 没有可用区限制意味着可以部署到任何区域可用的可用区。只需要确保磁盘在目标可用区可用即可。
+
+**操作**：正常继续部署
+
+## 脚本工作原理
+
+### 数据来源
+脚本使用 Azure CLI 的 `az vm list-skus` 命令查询：
+```bash
+# 查询 VM SKU
+az vm list-skus --location <region> --size <vm-sku>
+
+# 查询磁盘 SKU
+az vm list-skus --location <region> --resource-type disks
+```
+
+### 检查逻辑
+
+1. **区域级检查**：首先验证资源在区域级别是否存在
+2. **限制检查**：检查订阅是否有使用限制
+3. **可用区检查**：验证指定的可用区是否同时支持 VM 和磁盘
+4. **兼容性验证**：确保 VM 和 Premium SSD v2 可以在同一可用区部署
+
+### 关键要求
+
+**Premium SSD v2 的特殊要求：**
+- ✅ VM 和磁盘必须在同一可用区
+- ✅ 只在特定区域可用
+- ✅ 需要支持 Premium Storage 的 VM 规格
+
+## 最佳实践
+
+### 部署前检查流程
+
+```bash
+# 1. 快速验证当前配置
+./scripts/check-vmss-disk-availability.sh Standard_D4s_v6 westus3 3
+
+# 2. 测试多个可用区
+./scripts/check-vmss-disk-availability.sh Standard_D4s_v6 westus3 "1,2,3"
+
+# 3. 确认后更新 terraform.tfvars
+# 编辑文件设置：location, vm_size, zones
+
+# 4. 通过 Makefile 部署
+make deploy
+```
+
+### 推荐的区域和配置
+
+**生产环境推荐配置：**
+
+```hcl
+# 配置 1: 美西 - 高性能
+location = "westus3"
+vm_size = "Standard_D4s_v6"
+zones = ["3"]
+
+# 配置 2: 美东 - 备用
+location = "eastus2"  
+vm_size = "Standard_D4s_v6"
+zones = ["1"]
+
+# 配置 3: 欧洲
+location = "northeurope"
+vm_size = "Standard_D4s_v6"
+zones = ["2"]
+```
+
+## 故障排查
+
+### 脚本无法运行
+
+**问题**：Permission denied
+
+**解决**：
+```bash
+chmod +x scripts/check-vmss-disk-availability.sh
+```
+
+### Azure CLI 未登录
+
+**问题**：`❌ Not logged into Azure`
+
+**解决**：
+```bash
+az login
+# 如果有多个订阅，设置默认订阅：
+az account set --subscription "subscription-name-or-id"
+```
+
+### jq 命令未找到
+
+**问题**：脚本依赖 jq 解析 JSON
+
+**解决**：
+```bash
+# Ubuntu/Debian
+sudo apt-get install jq
+
+# macOS
+brew install jq
+
+# CentOS/RHEL
+sudo yum install jq
 ```
 
 ## 依赖
@@ -395,4 +635,55 @@ echo ""
 echo "结论："
 echo "- Premium SSD v2 是较新的技术，覆盖范围略小"
 echo "- 部署前务必运行 check-availability.sh 验证"
+```
+## 测试用例
+
+以下是不同场景的测试参数，可用于验证脚本的检测功能：
+
+| 场景 | VM 支持 | PV2 支持 | Region | Zone | 预期结果 |
+|------|---------|----------|--------|------|----------|
+| **✅ 完全兼容** | ✅ | ✅ | `westus3` | `1` | 所有检查通过 |
+| | ✅ | ✅ | `westus2` | `1` | 所有检查通过 |
+| | ✅ | ✅ | `eastus2` | `2` | 所有检查通过 |
+| | ✅ | ✅ | `centralus` | `1` | 所有检查通过 |
+| **⚠️ 仅 VM** | ✅ | ❌ | `southindia` | `1` | PV2 不可用，提示推荐区域 |
+| | ✅ | ❌ | `australiacentral` | `1` | PV2 不可用，提示推荐区域 |
+| | ✅ | ❌ | `belgiumcentral` | `1` | PV2 不可用，提示推荐区域 |
+| | ✅ | ❌ | `uaecentral` | `1` | PV2 不可用，提示推荐区域 |
+| | ✅ | ❌ | `francesouth` | `null` | PV2 不可用，提示推荐区域 |
+| | ✅ | ❌ | `germanynorth` | `null` | PV2 不可用，提示推荐区域 |
+| | ✅ | ❌ | `southafricawest` | `null` | PV2 不可用，提示推荐区域 |
+| **❌ VM 有限制** | ❌ | ✅ | `eastus` | `1` | VM 有订阅限制 (NotAvailableForSubscription) |
+| | ❌ | ✅ | `norwayeast` | `1` | VM 不可用（ARM64 支持较晚）|
+
+### 测试步骤
+
+1. 修改 `terraform.tfvars` 中的配置：
+   ```hcl
+   location = "southindia"  # 使用上表中的 region
+   zones    = ["1"]         # 使用上表中的 zone (null 表示不指定)
+   ```
+
+2. 运行检查脚本：
+   ```bash
+   ./scripts/check-availability.sh
+   ```
+
+3. 观察输出结果是否符合预期
+
+### 示例测试命令
+
+```bash
+# 测试场景 1：完全兼容（应该通过）
+sed -i 's/location = .*/location = "westus3"/' terraform.tfvars
+sed -i 's/zones = .*/zones    = ["1"]/' terraform.tfvars
+./scripts/check-availability.sh
+
+# 测试场景 2：仅支持 VM（应该提示 PV2 不可用）
+sed -i 's/location = .*/location = "southindia"/' terraform.tfvars
+./scripts/check-availability.sh
+
+# 测试场景 3：VM 有限制（应该提示 VM 订阅限制）
+sed -i 's/location = .*/location = "eastus"/' terraform.tfvars
+./scripts/check-availability.sh
 ```

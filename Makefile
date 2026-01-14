@@ -17,7 +17,7 @@ help:
 # 检查 Azure 资源可用性
 check:
 	@echo "Checking Azure resource availability..."
-	@./scripts/check-availability.sh
+	@./scripts/check-vmss-disk-availability.sh
 
 # 清理 Terraform 文件
 clean:
