@@ -103,6 +103,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = var.os_disk_type
+    disk_size_gb         = var.os_disk_size_gb
   }
 
   source_image_reference {
@@ -127,8 +128,8 @@ resource "azurerm_managed_disk" "data_disk" {
   zone                 = var.zone
 
   # Premium SSD v2 performance settings
-  disk_iops_read_write    = var.data_disk_type == "PremiumV2_LRS" ? var.data_disk_iops : null
-  disk_mbps_read_write    = var.data_disk_type == "PremiumV2_LRS" ? var.data_disk_mbps : null
+  disk_iops_read_write = var.data_disk_type == "PremiumV2_LRS" ? var.data_disk_iops : null
+  disk_mbps_read_write = var.data_disk_type == "PremiumV2_LRS" ? var.data_disk_mbps : null
 
   tags = var.tags
 }

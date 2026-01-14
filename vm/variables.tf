@@ -29,6 +29,12 @@ variable "zone" {
 }
 
 # OS Disk
+variable "os_disk_size_gb" {
+  description = "OS 磁盘大小(GB)"
+  type        = number
+  default     = 256
+}
+
 variable "os_disk_type" {
   description = "OS 磁盘类型"
   type        = string
@@ -115,13 +121,13 @@ variable "image_publisher" {
 variable "image_offer" {
   description = "镜像 Offer"
   type        = string
-  default     = "0001-com-ubuntu-server-jammy"
+  default     = "ubuntu-24_04-lts"
 }
 
 variable "image_sku" {
   description = "镜像 SKU"
   type        = string
-  default     = "22_04-lts-gen2"
+  default     = "server"
 }
 
 variable "image_version" {
