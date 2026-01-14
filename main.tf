@@ -1,0 +1,187 @@
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+# Resource Group
+resource "azurerm_resource_group" "vmss_rg" {
+  name     = "rg-vmss-pdv2"
+  location = "westus3"
+}
+
+# Virtual Network
+resource "azurerm_virtual_network" "vmss_vnet" {
+  name                = "vnet-vmss"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.vmss_rg.location
+  resource_group_name = azurerm_resource_group.vmss_rg.name
+}
+
+# Subnet
+resource "azurerm_subnet" "vmss_subnet" {
+  name                 = "subnet-vmss"
+  resource_group_name  = azurerm_resource_group.vmss_rg.name
+  virtual_network_name = azurerm_virtual_network.vmss_vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+# Flexible VMSS with full VM profile (Portal-friendly configuration)
+resource "azurerm_orchestrated_virtual_machine_scale_set" "vmss" {
+  name                = "vmss-pdv2-demo"
+  resource_group_name = azurerm_resource_group.vmss_rg.name
+  location            = azurerm_resource_group.vmss_rg.location
+
+  # SKU and Instances - enables Portal manual scaling
+  sku_name  = var.vm_size
+  instances = var.instance_count
+
+  # Flexible orchestration mode
+  platform_fault_domain_count = 1
+  single_placement_group      = false
+  zones                       = var.zones != null ? var.zones : []
+
+  # OS Profile with VM configuration
+  os_profile {
+    linux_configuration {
+      computer_name_prefix            = "vmss-pdv2"
+      admin_username                  = var.admin_username
+      admin_password                  = var.admin_password
+      disable_password_authentication = false
+    }
+  }
+
+  # Network Interface Configuration
+  network_interface {
+    name    = "nic-vmss"
+    primary = true
+
+    ip_configuration {
+      name      = "internal"
+      primary   = true
+      subnet_id = azurerm_subnet.vmss_subnet.id
+    }
+  }
+
+  # OS Disk
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+  }
+
+  # Source Image
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts-gen2"
+    version   = "latest"
+  }
+
+  # Data Disk (if specified)
+  dynamic "data_disk" {
+    for_each = var.disk_size_gb != null ? [1] : []
+    content {
+      lun                  = var.disk_lun
+      caching              = "None"
+      create_option        = "Empty"
+      disk_size_gb         = var.disk_size_gb
+      storage_account_type = "PremiumV2_LRS"
+      # NOTE: Flexible VMSS does NOT support ultra_ssd parameters in data_disk block
+      # ultra_ssd_disk_iops_read_write = var.disk_iops
+      # ultra_ssd_disk_mbps_read_write = var.disk_throughput_mbps
+    }
+  }
+
+  # Tags
+  tags = {
+    Environment = "Demo"
+    Type        = "Flexible"
+  }
+}
+
+# Note: This configuration creates a Flexible VMSS with virtualMachineProfile
+# - Portal manual scaling: Can adjust instance count in Azure Portal
+# - Autoscale support: Can add azurerm_monitor_autoscale_setting later
+# - Azure manages VM creation/deletion based on instance count
+# - VMs get automatic names like: vmss-name_<instance_id>
+# - Up to 1000 instances (Flexible mode maximum)
+
+# Update Premium V2 Disk Performance (Workaround for Flexible VMSS limitation)
+# Flexible VMSS doesn't support ultra_ssd parameters in data_disk block,
+# so we use Azure CLI to update disk performance after creation
+# See: https://learn.microsoft.com/en-us/azure/virtual-machine-scale-sets/virtual-machine-scale-sets-orchestration-modes#unsupported-parameters
+resource "null_resource" "update_disk_performance" {
+  # Only execute if data_disk is configured with IOPS/throughput parameters
+  count = var.disk_size_gb != null && var.disk_iops != null ? 1 : 0
+
+  triggers = {
+    vmss_id        = azurerm_orchestrated_virtual_machine_scale_set.vmss.id
+    instance_count = var.instance_count
+    target_lun     = var.disk_lun
+    target_iops    = var.disk_iops
+    target_mbps    = var.disk_throughput_mbps
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      echo "=== Updating Premium V2 Disk performance for VMSS ==="
+      
+      # Wait for VMSS and disks to be ready
+      echo "Waiting for VMSS instances and disks to be ready..."
+      sleep 45
+      
+      # Get all VM instances in the VMSS
+      echo "Fetching VMSS instances..."
+      INSTANCES=$(az vmss list-instances \
+        --resource-group ${azurerm_resource_group.vmss_rg.name} \
+        --name ${azurerm_orchestrated_virtual_machine_scale_set.vmss.name} \
+        --query "[].name" -o tsv)
+      
+      if [ -z "$INSTANCES" ]; then
+        echo "⚠ No instances found in VMSS"
+        exit 0
+      fi
+      
+      # Update disk performance for each instance
+      for VM_NAME in $INSTANCES; do
+        echo "Processing VM: $VM_NAME"
+        
+        # Get disk name for the specified LUN
+        DISK_NAME=$(az vm show \
+          --resource-group ${azurerm_resource_group.vmss_rg.name} \
+          --name $VM_NAME \
+          --query "storageProfile.dataDisks[?lun==\`${var.disk_lun}\`].name" -o tsv 2>/dev/null)
+        
+        if [ -n "$DISK_NAME" ]; then
+          echo "Found disk: $DISK_NAME on LUN ${var.disk_lun}"
+          
+          # Update disk performance parameters
+          az disk update \
+            --resource-group ${azurerm_resource_group.vmss_rg.name} \
+            --name $DISK_NAME \
+            --disk-iops-read-write ${var.disk_iops} \
+            --disk-mbps-read-write ${var.disk_throughput_mbps} \
+            --no-wait
+          
+          echo "✓ Updated $DISK_NAME: ${var.disk_iops} IOPS, ${var.disk_throughput_mbps} MB/s"
+        else
+          echo "⚠ No disk found on LUN ${var.disk_lun} for $VM_NAME"
+        fi
+      done
+      
+      echo "✓ Performance update completed for VMSS"
+    EOT
+  }
+
+  depends_on = [
+    azurerm_orchestrated_virtual_machine_scale_set.vmss
+  ]
+}
