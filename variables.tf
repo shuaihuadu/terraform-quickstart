@@ -64,3 +64,48 @@ variable "admin_password" {
   sensitive   = true
   default     = "AzureTest@2026!"
 }
+
+variable "vnet_name" {
+  description = "虚拟网络名称"
+  type        = string
+  default     = "vnet-vmss"
+}
+
+variable "vnet_address_space" {
+  description = "虚拟网络地址空间"
+  type        = list(string)
+  default     = ["10.0.0.0/16"]
+}
+
+variable "subnet_name" {
+  description = "子网名称"
+  type        = string
+  default     = "subnet-vmss"
+}
+
+variable "subnet_address_prefixes" {
+  description = "子网地址前缀"
+  type        = list(string)
+  default     = ["10.0.1.0/24"]
+}
+
+variable "vmss_name" {
+  description = "VMSS 名称"
+  type        = string
+  default     = "vmss-pdv2-demo"
+}
+
+variable "computer_name_prefix" {
+  description = "虚拟机计算机名前缀"
+  type        = string
+  default     = "vmss-pdv2"
+}
+
+variable "tags" {
+  description = "资源标签"
+  type        = map(string)
+  default = {
+    Environment = "Demo"
+    Type        = "Flexible"
+  }
+}

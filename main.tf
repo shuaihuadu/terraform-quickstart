@@ -13,29 +13,29 @@ provider "azurerm" {
 
 # Resource Group
 resource "azurerm_resource_group" "vmss_rg" {
-  name     = "rg-vmss-pdv2"
-  location = "westus3"
+  name     = var.resource_group_name
+  location = var.location
 }
 
 # Virtual Network
 resource "azurerm_virtual_network" "vmss_vnet" {
-  name                = "vnet-vmss"
-  address_space       = ["10.0.0.0/16"]
+  name                = var.vnet_name
+  address_space       = var.vnet_address_space
   location            = azurerm_resource_group.vmss_rg.location
   resource_group_name = azurerm_resource_group.vmss_rg.name
 }
 
 # Subnet
 resource "azurerm_subnet" "vmss_subnet" {
-  name                 = "subnet-vmss"
+  name                 = var.subnet_name
   resource_group_name  = azurerm_resource_group.vmss_rg.name
   virtual_network_name = azurerm_virtual_network.vmss_vnet.name
-  address_prefixes     = ["10.0.1.0/24"]
+  address_prefixes     = var.subnet_address_prefixes
 }
 
 # Flexible VMSS with full VM profile (Portal-friendly configuration)
 resource "azurerm_orchestrated_virtual_machine_scale_set" "vmss" {
-  name                = "vmss-pdv2-demo"
+  name                = var.vmss_name
   resource_group_name = azurerm_resource_group.vmss_rg.name
   location            = azurerm_resource_group.vmss_rg.location
 
@@ -51,7 +51,7 @@ resource "azurerm_orchestrated_virtual_machine_scale_set" "vmss" {
   # OS Profile with VM configuration
   os_profile {
     linux_configuration {
-      computer_name_prefix            = "vmss-pdv2"
+      computer_name_prefix            = var.computer_name_prefix
       admin_username                  = var.admin_username
       admin_password                  = var.admin_password
       disable_password_authentication = false
@@ -100,10 +100,7 @@ resource "azurerm_orchestrated_virtual_machine_scale_set" "vmss" {
   }
 
   # Tags
-  tags = {
-    Environment = "Demo"
-    Type        = "Flexible"
-  }
+  tags = var.tags
 }
 
 # Note: This configuration creates a Flexible VMSS with virtualMachineProfile
