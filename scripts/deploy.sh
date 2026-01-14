@@ -3,9 +3,7 @@
 
 set -e
 
-# 切换到项目根目录
-cd "$(dirname "$0")/.."
-
+# 使用当前目录（调用时已在 vmss 目录）
 echo "=== Terraform Deployment Script ==="
 echo "Working directory: $(pwd)"
 echo ""

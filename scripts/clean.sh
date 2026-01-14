@@ -3,9 +3,7 @@
 
 set -e
 
-# 切换到项目根目录
-cd "$(dirname "$0")/.."
-
+# 使用当前目录（调用时已在 vmss 目录）
 echo "=== Cleaning Terraform files in $(pwd) ==="
 
 # 删除 .terraform 目录

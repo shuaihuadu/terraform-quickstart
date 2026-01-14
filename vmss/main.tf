@@ -127,7 +127,7 @@ resource "null_resource" "update_disk_performance" {
   }
 
   provisioner "local-exec" {
-    command = "${path.module}/scripts/update-disk-performance.sh"
+    command = "${path.module}/../scripts/vmss/update-disk-performance.sh"
 
     environment = {
       RESOURCE_GROUP   = azurerm_resource_group.vmss_rg.name
