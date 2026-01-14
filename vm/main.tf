@@ -84,6 +84,17 @@ resource "azurerm_network_interface_security_group_association" "vm_nsg_assoc" {
   network_security_group_id = azurerm_network_security_group.vm_nsg.id
 }
 
+# Azure SSH 公钥资源 (独立资源，可在 Portal 中查看和复用)
+resource "azurerm_ssh_public_key" "vm_ssh_key" {
+  count               = var.ssh_public_key_file != null ? 1 : 0
+  name                = "${var.vm_name}_key"
+  resource_group_name = azurerm_resource_group.vm_rg.name
+  location            = azurerm_resource_group.vm_rg.location
+  public_key          = file(var.ssh_public_key_file)
+
+  tags = var.tags
+}
+
 # Virtual Machine
 resource "azurerm_linux_virtual_machine" "vm" {
   name                = var.vm_name
@@ -96,12 +107,12 @@ resource "azurerm_linux_virtual_machine" "vm" {
   admin_password                  = var.ssh_public_key_file != null ? null : var.admin_password
   disable_password_authentication = var.ssh_public_key_file != null
 
-  # SSH 公钥认证 (可选)
+  # SSH 公钥认证 (使用 Azure SSH 密钥资源)
   dynamic "admin_ssh_key" {
     for_each = var.ssh_public_key_file != null ? [1] : []
     content {
       username   = var.admin_username
-      public_key = file(var.ssh_public_key_file)
+      public_key = azurerm_ssh_public_key.vm_ssh_key[0].public_key
     }
   }
 
@@ -161,28 +172,30 @@ resource "null_resource" "set_user_password" {
   }
 
   provisioner "local-exec" {
-    command = <<-EOT
-      # 从 .env 文件读取密码
-      source .env
-      
-      # 等待 VM 完全就绪
-      echo "Waiting for VM to be ready..."
-      sleep 30
-      
-      # 使用 Azure CLI 通过 run-command 设置密码
-      echo "Setting password for user ${var.admin_username}..."
-      az vm run-command invoke \
-        --resource-group ${azurerm_resource_group.vm_rg.name} \
-        --name ${azurerm_linux_virtual_machine.vm.name} \
-        --command-id RunShellScript \
-        --scripts "echo '${var.admin_username}:'\"$PASSWORD\" | sudo chpasswd" \
-        --output none
-      
-      echo "✓ Password set successfully for user ${var.admin_username}"
-    EOT
+    command     = "${path.module}/scripts/set-password.sh ${azurerm_resource_group.vm_rg.name} ${azurerm_linux_virtual_machine.vm.name} ${var.admin_username}"
+    interpreter = ["/bin/bash", "-c"]
   }
 
   depends_on = [
     azurerm_linux_virtual_machine.vm
+  ]
+}
+
+# 部署后配置：生成 PEM 文件
+resource "null_resource" "generate_pem" {
+  count = var.ssh_public_key_file != null && var.enable_public_ip ? 1 : 0
+
+  triggers = {
+    vm_id = azurerm_linux_virtual_machine.vm.id
+  }
+
+  provisioner "local-exec" {
+    command     = "${path.module}/scripts/generate-pem.sh ${var.admin_username} ${azurerm_public_ip.vm_pip[0].ip_address}"
+    interpreter = ["/bin/bash", "-c"]
+  }
+
+  depends_on = [
+    azurerm_linux_virtual_machine.vm,
+    azurerm_public_ip.vm_pip
   ]
 }

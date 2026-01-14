@@ -105,10 +105,10 @@ variable "admin_username" {
 }
 
 variable "admin_password" {
-  description = "管理员密码（至少12个字符，包含大小写字母、数字和特殊字符）。如使用 SSH 公钥则可不填"
+  description = "管理员密码（至少12个字符，包含大小写字母、数字和特殊字符）。使用 SSH 公钥时可不填"
   type        = string
   sensitive   = true
-  default     = "AzureTest@2026!"
+  default     = null
 }
 
 variable "ssh_public_key_file" {
