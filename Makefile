@@ -17,7 +17,10 @@ help:
 # 检查 Azure 资源可用性
 check:
 	@echo "Checking Azure resource availability..."
-	@./scripts/check-vmss-disk-availability.sh
+	@VM_SKU=$$(grep '^vm_size' terraform.tfvars | cut -d'"' -f2); \
+	REGION=$$(grep '^location' terraform.tfvars | cut -d'"' -f2); \
+	ZONES=$$(grep '^zones' terraform.tfvars | grep -oP '\[.*\]' | tr -d '[]" ' | tr '\n' ','); \
+	./scripts/check-vmss-disk-availability.sh "$$VM_SKU" "$$REGION" "$$ZONES"
 
 # 清理 Terraform 文件
 clean:
