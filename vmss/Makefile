@@ -17,22 +17,22 @@ help:
 # 检查 Azure 资源可用性
 check:
 	@echo "Checking Azure resource availability..."
-	@VM_SKU=$$(grep '^vm_size' vmss/terraform.tfvars | cut -d'"' -f2); \
-	REGION=$$(grep '^location' vmss/terraform.tfvars | cut -d'"' -f2); \
-	ZONES=$$(grep '^zones' vmss/terraform.tfvars | grep -oP '\[.*\]' | tr -d '[]" ' | tr '\n' ','); \
-	./scripts/vmss/check-vmss-disk-availability.sh "$$VM_SKU" "$$REGION" "$$ZONES"
+	@VM_SKU=$$(grep '^vm_size' terraform.tfvars | cut -d'"' -f2); \
+	REGION=$$(grep '^location' terraform.tfvars | cut -d'"' -f2); \
+	ZONES=$$(grep '^zones' terraform.tfvars | grep -oP '\[.*\]' | tr -d '[]" ' | tr '\n' ','); \
+	../scripts/vmss/check-vmss-disk-availability.sh "$$VM_SKU" "$$REGION" "$$ZONES"
 
 # 清理 Terraform 文件
 clean:
 	@echo "Cleaning Terraform files..."
-	@cd vmss && ../scripts/clean.sh
+	@../scripts/clean.sh
 
 # 部署基础设施 (先检查再部署)
 deploy: check
 	@echo "Deploying infrastructure..."
-	@cd vmss && ../scripts/deploy.sh
+	@../scripts/deploy.sh
 
 # 销毁基础设施
 destroy:
 	@echo "Destroying infrastructure..."
-	@cd vmss && terraform destroy -auto-approve
+	@terraform destroy -auto-approve
