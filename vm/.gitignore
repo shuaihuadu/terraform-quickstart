@@ -1,0 +1,10 @@
+# Terraform 生成的文件
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfplan
+
+# 密钥文件 - 不要提交到版本控制
+keys/*
+!keys/.gitkeep

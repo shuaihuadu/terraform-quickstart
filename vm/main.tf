@@ -93,8 +93,17 @@ resource "azurerm_linux_virtual_machine" "vm" {
   zone                = var.zone
 
   admin_username                  = var.admin_username
-  admin_password                  = var.admin_password
-  disable_password_authentication = false
+  admin_password                  = var.ssh_public_key_file != null ? null : var.admin_password
+  disable_password_authentication = var.ssh_public_key_file != null
+
+  # SSH 公钥认证 (可选)
+  dynamic "admin_ssh_key" {
+    for_each = var.ssh_public_key_file != null ? [1] : []
+    content {
+      username   = var.admin_username
+      public_key = file(var.ssh_public_key_file)
+    }
+  }
 
   network_interface_ids = [
     azurerm_network_interface.vm_nic.id,
