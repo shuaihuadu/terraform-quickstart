@@ -30,7 +30,16 @@ output "public_ip" {
 
 output "ssh_command" {
   description = "SSH 连接命令"
-  value       = var.enable_public_ip ? "ssh ${var.admin_username}@${azurerm_public_ip.vm_pip[0].ip_address}" : "ssh ${var.admin_username}@${azurerm_network_interface.vm_nic.private_ip_address}"
+  value = var.enable_public_ip ? (
+    local.use_ssh_key ? "ssh -i keys/id_rsa ${var.admin_username}@${azurerm_public_ip.vm_pip[0].ip_address}" : "ssh ${var.admin_username}@${azurerm_public_ip.vm_pip[0].ip_address}"
+    ) : (
+    local.use_ssh_key ? "ssh -i keys/id_rsa ${var.admin_username}@${azurerm_network_interface.vm_nic.private_ip_address}" : "ssh ${var.admin_username}@${azurerm_network_interface.vm_nic.private_ip_address}"
+  )
+}
+
+output "ssh_private_key_file" {
+  description = "SSH 私钥文件路径"
+  value       = var.auto_generate_ssh_key ? "keys/id_rsa" : null
 }
 
 output "vnet_id" {

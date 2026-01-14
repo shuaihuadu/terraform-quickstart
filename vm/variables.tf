@@ -111,8 +111,14 @@ variable "admin_password" {
   default     = null
 }
 
+variable "auto_generate_ssh_key" {
+  description = "是否自动生成 SSH 密钥对。启用后无需手动运行 ssh-keygen"
+  type        = bool
+  default     = true
+}
+
 variable "ssh_public_key_file" {
-  description = "SSH 公钥文件路径 (如 keys/id_rsa.pub)。设置后将禁用密码认证"
+  description = "SSH 公钥文件路径 (如 keys/id_rsa.pub)。仅在 auto_generate_ssh_key=false 时使用"
   type        = string
   default     = null
 }

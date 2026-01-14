@@ -14,28 +14,25 @@
 
 ## 快速开始
 
-### 1. 生成 SSH 密钥 (推荐)
+### 1. 修改配置
 
-> 💡 **为什么要生成 SSH 密钥？**
-> 
-> SSH 密钥用于 **VM 部署时的身份认证**。Terraform 会将公钥部署到 VM，之后你可以用私钥免密登录。
-> 
-> 相比密码认证的优势：
-> - **更安全**: 4096 位加密，暴力破解几乎不可能
-> - **更便捷**: 无需每次输入密码
-> - **支持自动化**: CI/CD 和脚本可无人值守执行
-> - **可审计**: 不同密钥可追踪不同用户
->
-> 详细说明请参考下方「[SSH 密钥认证说明](#ssh-密钥认证说明)」章节。
+编辑 `terraform.tfvars` 文件：
 
-```bash
-# 生成 RSA 4096 位密钥对
-ssh-keygen -t rsa -b 4096 -f keys/id_rsa -N ""
+```hcl
+# 基础配置
+location       = "westus3"
+vm_size        = "Standard_D4s_v5"
+vm_name        = "my-vm"
+admin_username = "azureuser"
+
+# SSH 密钥 (默认自动生成，无需手动操作)
+auto_generate_ssh_key = true
+
+# 启用公网 IP
+enable_public_ip = true
 ```
 
-生成的文件：
-- `keys/id_rsa` - 私钥 (保密，用于 SSH 登录)
-- `keys/id_rsa.pub` - 公钥 (部署到 VM)
+> 💡 **自动生成 SSH 密钥**：默认启用 `auto_generate_ssh_key = true`，Terraform 会自动生成 4096 位 RSA 密钥对到 `keys/` 目录，无需手动运行 `ssh-keygen`。
 
 ### 2. 配置密码 (可选)
 
@@ -50,43 +47,30 @@ cp .env.template .env
 
 > ⚠️ **安全提示**: `.env` 文件已在 `.gitignore` 中，不会被提交到 Git。
 
-### 3. 修改配置
-
-编辑 `terraform.tfvars` 文件：
-
-```hcl
-# 基础配置
-location = "westus3"
-vm_size  = "Standard_D4s_v5"
-vm_name  = "my-vm"
-
-# 启用公网 IP
-enable_public_ip = true
-
-# 添加数据磁盘 (可选)
-data_disk_size_gb = 100
-data_disk_type    = "Premium_LRS"
-```
-
-### 4. 部署
+### 3. 部署
 
 ```bash
 make deploy
 ```
 
-### 5. 连接 VM
+部署完成后，SSH 密钥会自动生成到 `keys/` 目录：
+- `keys/id_rsa` - 私钥
+- `keys/id_rsa.pub` - 公钥  
+- `keys/<username>@<ip>.pem` - PEM 格式私钥（便于共享）
+
+### 4. 连接 VM
 
 部署完成后会输出 SSH 连接命令：
 
 ```bash
-# 使用 SSH 密钥连接 (推荐)
+# 使用 SSH 密钥连接
 ssh -i keys/id_rsa <username>@<public-ip>
 
-# 或使用密码连接 (如果已配置)
+# 或使用密码连接 (如果已配置 .env)
 ssh <username>@<public-ip>
 ```
 
-### 6. 销毁
+### 5. 销毁
 
 ```bash
 make destroy
@@ -103,19 +87,20 @@ make destroy  # 销毁所有资源
 
 ## 配置说明
 
-| 变量                  | 说明                | 默认值                |
-| --------------------- | ------------------- | --------------------- |
-| `location`            | Azure 区域          | `westus3`             |
-| `vm_size`             | VM 规格             | `Standard_D4s_v5`     |
-| `vm_name`             | VM 名称             | `vm-demo`             |
-| `admin_username`      | 管理员用户名        | `azureuser`           |
-| `zone`                | 可用区 (1/2/3/null) | `null`                |
-| `os_disk_size_gb`     | OS 磁盘大小(GB)     | `256`                 |
-| `os_disk_type`        | OS 磁盘类型         | `Premium_LRS`         |
-| `data_disk_size_gb`   | 数据磁盘大小(GB)    | `null` (不创建)       |
-| `data_disk_type`      | 数据磁盘类型        | `Premium_LRS`         |
-| `enable_public_ip`    | 是否创建公网 IP     | `true`                |
-| `ssh_public_key_file` | SSH 公钥文件路径    | `null` (使用密码认证) |
+| 变量                    | 说明                    | 默认值            |
+| ----------------------- | ----------------------- | ----------------- |
+| `location`              | Azure 区域              | `westus3`         |
+| `vm_size`               | VM 规格                 | `Standard_D4s_v5` |
+| `vm_name`               | VM 名称                 | `vm-demo`         |
+| `admin_username`        | 管理员用户名            | `azureuser`       |
+| `zone`                  | 可用区 (1/2/3/null)     | `null`            |
+| `os_disk_size_gb`       | OS 磁盘大小(GB)         | `256`             |
+| `os_disk_type`          | OS 磁盘类型             | `Premium_LRS`     |
+| `data_disk_size_gb`     | 数据磁盘大小(GB)        | `null` (不创建)   |
+| `data_disk_type`        | 数据磁盘类型            | `Premium_LRS`     |
+| `enable_public_ip`      | 是否创建公网 IP         | `true`            |
+| `auto_generate_ssh_key` | 自动生成 SSH 密钥       | `true`            |
+| `ssh_public_key_file`   | SSH 公钥文件 (手动模式) | `null`            |
 
 ## 使用 Premium SSD v2
 
