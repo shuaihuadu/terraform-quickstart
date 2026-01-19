@@ -1,4 +1,4 @@
-.PHONY: clean deploy destroy help init list
+.PHONY: clean deploy destroy help init list login
 
 # 默认目标
 .DEFAULT_GOAL := help
@@ -8,6 +8,7 @@ help:
 	@echo "Terraform Quickstart - Root Makefile"
 	@echo ""
 	@echo "Available targets:"
+	@echo "  make login              - Login to Azure (az login)"
 	@echo "  make list               - List all available modules"
 	@echo "  make init MODULE=xxx    - Initialize Terraform for specified module"
 	@echo "  make deploy MODULE=xxx  - Deploy specified module"
@@ -17,11 +18,22 @@ help:
 	@echo "  make help               - Show this help message"
 	@echo ""
 	@echo "Examples:"
+	@echo "  make login"
 	@echo "  make init MODULE=vm"
 	@echo "  make deploy MODULE=vm"
 	@echo "  make destroy MODULE=vmss"
 	@echo "  make clean MODULE=vmss"
 	@echo "  make clean-all"
+
+# 登录 Azure
+login:
+	@echo "🔐 Logging in to Azure..."
+	@az login
+	@echo ""
+	@echo "✓ Azure login successful"
+	@echo ""
+	@echo "Current subscription:"
+	@az account show --query "{name:name, id:id}" -o table
 
 # 列出所有可用模块
 list:

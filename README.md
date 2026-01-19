@@ -4,13 +4,13 @@ Azure 资源的 Terraform 快速部署模板集合，每个模块完全自包含
 
 ## 可用模块
 
-| 模块 | 说明 | 状态 |
-|------|------|------|
-| [vmss/](vmss/) | Flexible VMSS + Premium SSD v2 | ✅ 可用 |
-| vm/ | 单 VM 部署 | 🔜 计划中 |
-| redis/ | Azure Redis Cache | 🔜 计划中 |
-| postgres/ | Azure Database for PostgreSQL | 🔜 计划中 |
-| sql-server/ | Azure SQL Server | 🔜 计划中 |
+| 模块           | 说明                                | 状态     |
+| -------------- | ----------------------------------- | -------- |
+| [vmss/](vmss/) | Flexible VMSS + Premium SSD v2      | ✅ 可用   |
+| [vm/](vm/)     | 单 Linux VM + SSH 密钥 + 多磁盘类型 | ✅ 可用   |
+| redis/         | Azure Redis Cache                   | 🔜 计划中 |
+| postgres/      | Azure Database for PostgreSQL       | 🔜 计划中 |
+| sql-server/    | Azure SQL Server                    | 🔜 计划中 |
 
 ## 快速开始
 
@@ -23,7 +23,7 @@ Azure 资源的 Terraform 快速部署模板集合，每个模块完全自包含
 ### 登录 Azure
 
 ```bash
-az login
+make login
 ```
 
 ### 使用模块
@@ -49,7 +49,11 @@ make destroy
 
 ```bash
 make help              # 显示帮助
+make login             # 登录 Azure
 make list              # 列出所有可用模块
+make init MODULE=vm    # 初始化指定模块
+make deploy MODULE=vm  # 部署指定模块
+make destroy MODULE=vm # 销毁指定模块
 make clean MODULE=vmss # 清理指定模块的 tfstate
 make clean-all         # 清理所有模块
 ```
@@ -68,6 +72,17 @@ terraform-quickstart/
 │       ├── scale-vmss.sh
 │       ├── update-disk-performance.sh
 │       └── README.md
+├── vm/                      # VM 模块 (单虚拟机)
+│   ├── Makefile
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   ├── terraform.tfvars
+│   ├── README.md
+│   ├── keys/                # SSH 密钥目录 (自动生成)
+│   └── scripts/
+│       ├── generate-pem.sh
+│       └── set-password.sh
 └── vmss/                    # VMSS 模块
     ├── Makefile
     ├── main.tf
